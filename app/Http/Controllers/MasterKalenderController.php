@@ -29,8 +29,7 @@ class MasterKalenderController extends Controller
             }
 
             $masterKalender = $query
-                ->orderByDesc('tahun_kalender')
-                ->orderBy('nama_kalender')
+                ->orderBy('id_kalender')
                 ->paginate(9)
                 ->withQueryString();
 
@@ -58,10 +57,12 @@ class MasterKalenderController extends Controller
         ]);
     }
 
-    public function dashboard()
+    public function dashboard(Request $request)
     {
         $timezone = 'Asia/Jakarta';
         $today = \Carbon\Carbon::today($timezone);
+        $selectedMetodeTahun = trim((string) $request->query('tahun_metode', ''));
+        $selectedTrendTahun = trim((string) $request->query('tahun_tren', ''));
 
         $totalMasterKalender = Schema::hasTable('master_kalender') ? DB::table('master_kalender')->count() : 0;
         $totalMasterWaktu = Schema::hasTable('master_waktu') ? DB::table('master_waktu')->count() : 0;
@@ -80,36 +81,77 @@ class MasterKalenderController extends Controller
                 ->get()
             : collect();
 
-        $rekapMetode = Schema::hasTable('detail_aktivitas')
+        $tahunMetodeOptions = Schema::hasTable('detail_aktivitas')
             ? DB::table('detail_aktivitas')
-                ->select(
-                    DB::raw('metode_pembelajaran as metode'),
-                    DB::raw('COUNT(*) as total')
-                )
-                ->groupBy('metode_pembelajaran')
-                ->orderBy('metode_pembelajaran')
-                ->get()
+                ->selectRaw('YEAR(tanggal_aktivitas) as tahun_aktivitas')
+                ->whereNotNull('tanggal_aktivitas')
+                ->distinct()
+                ->orderByDesc('tahun_aktivitas')
+                ->pluck('tahun_aktivitas')
             : collect();
 
-        $startWindow = $today->copy()->startOfMonth()->subMonths(11);
-        $endWindow = $today->copy()->endOfMonth();
-        $labels12Bulan = [];
+        if ($selectedMetodeTahun !== '' && !$tahunMetodeOptions->contains((int) $selectedMetodeTahun)) {
+            $selectedMetodeTahun = '';
+        }
+
+        $tahunTrendOptions = $tahunMetodeOptions->isNotEmpty()
+            ? $tahunMetodeOptions->values()
+            : collect([(int) $today->format('Y')]);
+
+        if ($selectedTrendTahun !== '' && !$tahunTrendOptions->contains((int) $selectedTrendTahun)) {
+            $selectedTrendTahun = '';
+        }
+
+        if ($selectedTrendTahun === '') {
+            $tahunSekarang = (int) $today->format('Y');
+            $selectedTrendTahun = (string) ($tahunTrendOptions->contains($tahunSekarang)
+                ? $tahunSekarang
+                : (int) $tahunTrendOptions->first());
+        }
+
+        if (Schema::hasTable('detail_aktivitas')) {
+            $rekapMetodeQuery = DB::table('detail_aktivitas')
+                ->select(
+                    DB::raw('detail_aktivitas.metode_pembelajaran as metode'),
+                    DB::raw('COUNT(*) as total')
+                );
+
+            if ($selectedMetodeTahun !== '') {
+                $rekapMetodeQuery->whereYear('detail_aktivitas.tanggal_aktivitas', (int) $selectedMetodeTahun);
+            }
+
+            $rekapMetode = $rekapMetodeQuery
+                ->groupBy('detail_aktivitas.metode_pembelajaran')
+                ->orderBy('detail_aktivitas.metode_pembelajaran')
+                ->get();
+        } else {
+            $rekapMetode = collect();
+        }
+
+        $trendYear = (int) $selectedTrendTahun;
+        $startWindow = \Carbon\Carbon::create($trendYear, 1, 1, 0, 0, 0, $timezone)->startOfYear();
+        $endWindow = $startWindow->copy()->endOfYear();
+        $labelsTren = [];
         $valuesByMonth = [];
 
         for ($month = $startWindow->copy(); $month->lte($endWindow); $month->addMonth()) {
             $key = $month->format('Y-m');
-            $labels12Bulan[] = ucfirst($month->locale('id')->isoFormat('MMM YYYY'));
+            $labelsTren[] = ucfirst($month->locale('id')->isoFormat('MMM YYYY'));
             $valuesByMonth[$key] = 0;
         }
 
-        if (Schema::hasTable('detail_aktivitas')) {
-            $rows = DB::table('detail_aktivitas')
-                ->select('tanggal_aktivitas')
-                ->whereBetween('tanggal_aktivitas', [$startWindow->format('Y-m-d'), $endWindow->format('Y-m-d')])
+        if (Schema::hasTable('master_waktu')) {
+            $rows = DB::table('master_waktu')
+                ->select('tanggal_mulai')
+                ->whereBetween('tanggal_mulai', [$startWindow->format('Y-m-d'), $endWindow->format('Y-m-d')])
                 ->get();
 
             foreach ($rows as $row) {
-                $monthKey = substr((string) $row->tanggal_aktivitas, 0, 7);
+                try {
+                    $monthKey = \Carbon\Carbon::parse($row->tanggal_mulai, $timezone)->format('Y-m');
+                } catch (\Throwable $exception) {
+                    continue;
+                }
 
                 if (array_key_exists($monthKey, $valuesByMonth)) {
                     $valuesByMonth[$monthKey]++;
@@ -126,8 +168,12 @@ class MasterKalenderController extends Controller
             ],
             'rekapTahun' => $rekapTahun,
             'rekapMetode' => $rekapMetode,
-            'labels12Bulan' => $labels12Bulan,
-            'values12Bulan' => array_values($valuesByMonth),
+            'tahunMetodeOptions' => $tahunMetodeOptions,
+            'selectedMetodeTahun' => $selectedMetodeTahun,
+            'tahunTrendOptions' => $tahunTrendOptions,
+            'selectedTrendTahun' => $selectedTrendTahun,
+            'labelsTren' => $labelsTren,
+            'valuesTren' => array_values($valuesByMonth),
         ]);
     }
 
@@ -497,14 +543,14 @@ class MasterKalenderController extends Controller
             'tanggal_mulai_aktivitas' => ['required', 'date'],
             'tanggal_selesai_aktivitas' => ['required', 'date', 'after_or_equal:tanggal_mulai_aktivitas'],
             'nama_kegiatan' => ['required', 'string', 'max:255'],
-            'metode_pembelajaran' => ['required', 'in:klasikal,e-learning,mooc,cop'],
+            'metode_pembelajaran' => ['required', 'in:klasikal,e-learning,mooc,cop,zoom,off-campus'],
             'nama_pengajar' => ['required', 'string', 'max:255'],
-            'include_weekend' => ['required', 'boolean'],
+            'include_weekend' => ['required', 'in:0,sabtu,1'],
         ]);
 
         $tanggalMulai = \Carbon\Carbon::parse($validated['tanggal_mulai_aktivitas'])->startOfDay();
         $tanggalSelesai = \Carbon\Carbon::parse($validated['tanggal_selesai_aktivitas'])->startOfDay();
-        $includeWeekend = (bool) $validated['include_weekend'];
+        $includeWeekendMode = (string) $validated['include_weekend'];
 
         $maxRangeDays = 366;
         if ($tanggalMulai->diffInDays($tanggalSelesai) + 1 > $maxRangeDays) {
@@ -515,7 +561,13 @@ class MasterKalenderController extends Controller
         $cursor = $tanggalMulai->copy();
 
         while ($cursor->lte($tanggalSelesai)) {
-            if (!$includeWeekend && $cursor->isWeekend()) {
+            $shouldSkipDate = match ($includeWeekendMode) {
+                '1' => false,
+                'sabtu' => $cursor->isSunday(),
+                default => $cursor->isWeekend(),
+            };
+
+            if ($shouldSkipDate) {
                 $cursor->addDay();
                 continue;
             }
@@ -589,7 +641,7 @@ class MasterKalenderController extends Controller
         $validated = $request->validate([
             'edit_tanggal_aktivitas' => ['required', 'date'],
             'edit_nama_kegiatan' => ['required', 'string', 'max:255'],
-            'edit_metode_pembelajaran' => ['required', 'in:klasikal,e-learning,mooc,cop'],
+            'edit_metode_pembelajaran' => ['required', 'in:klasikal,e-learning,mooc,cop,zoom,off-campus'],
             'edit_nama_pengajar' => ['required', 'string', 'max:255'],
         ]);
 
@@ -652,6 +704,63 @@ class MasterKalenderController extends Controller
             'month' => \Carbon\Carbon::parse($tanggalAktivitas)->format('Y-m'),
             'selected_date' => $tanggalAktivitas,
         ])->with('success_aktivitas_delete', 'Detail aktivitas berhasil dihapus.');
+    }
+
+    public function update(Request $request, int $id): RedirectResponse
+    {
+        if (!Schema::hasTable('master_kalender')) {
+            return back()->with('error_upload', 'Tabel master_kalender belum tersedia.');
+        }
+
+        $kalender = DB::table('master_kalender')->where('id_kalender', $id)->first();
+        if (!$kalender) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'nama_kalender' => ['required', 'string', 'max:255'],
+            'tahun_kalender' => ['required', 'integer', 'min:1900', 'max:2100'],
+            'total_peserta' => ['required', 'integer', 'min:0'],
+        ]);
+
+        DB::table('master_kalender')
+            ->where('id_kalender', $id)
+            ->update([
+                'nama_kalender' => $validated['nama_kalender'],
+                'tahun_kalender' => $validated['tahun_kalender'],
+                'total_peserta' => $validated['total_peserta'],
+            ]);
+
+        // If the user originated from detail page, return there
+        $referrer = request()->headers->get('referer');
+        if ($referrer && strpos($referrer, "/katalog/{$id}") !== false && strpos($referrer, "/katalog/{$id}/") === false) {
+            return redirect()->route('katalog.detail', ['id' => $id])->with('success_upload', 'Data master kalender berhasil diperbarui.');
+        }
+
+        return back()->with('success_upload', 'Data master kalender berhasil diperbarui.');
+    }
+
+    public function destroy(int $id): RedirectResponse
+    {
+        if (!Schema::hasTable('master_kalender')) {
+            return back()->with('error_upload', 'Tabel master_kalender belum tersedia.');
+        }
+
+        $kalender = DB::table('master_kalender')->where('id_kalender', $id)->first();
+        if (!$kalender) {
+            abort(404);
+        }
+
+        if (Schema::hasTable('detail_aktivitas')) {
+            DB::table('detail_aktivitas')->where('id_kalender', $id)->delete();
+        }
+        if (Schema::hasTable('master_waktu')) {
+            DB::table('master_waktu')->where('id_kalender', $id)->delete();
+        }
+
+        DB::table('master_kalender')->where('id_kalender', $id)->delete();
+
+        return redirect()->route('katalog.index')->with('success_upload', 'Master kalender berhasil dihapus.');
     }
 
     private function isDateWithinMasterWaktu(int $idKalender, string $tanggal): bool

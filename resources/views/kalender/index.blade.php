@@ -37,6 +37,7 @@
         $aktivitasKalender = $aktivitasKalender ?? collect();
         $selectedDate = ($selectedDate ?? $today->copy())->copy()->startOfDay();
         $agendaTerpilih = $agendaTerpilih ?? collect();
+        $isAdmin = auth()->check() && auth()->user()?->isAdmin();
 
         $startDate = $displayedMonth->copy()->startOfWeek(\Carbon\Carbon::MONDAY);
         $endDate = $displayedMonth->copy()->endOfMonth()->endOfWeek(\Carbon\Carbon::SUNDAY);
@@ -80,8 +81,8 @@
                     <div>
                         <nav class="mb-4 inline-flex flex-wrap items-center gap-1 rounded-full bg-slate-100 p-1 ring-1 ring-slate-200">
                             <a href="{{ route('katalog.index') }}" class="rounded-full px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-white hover:text-slate-900">Katalog</a>
-                            <a href="{{ route('dashboard.index') }}" class="rounded-full px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-white hover:text-slate-900">Dashboard</a>
                             <a href="{{ route('kalender.index') }}" class="rounded-full bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm">Kalender</a>
+                            <a href="{{ route('dashboard.index') }}" class="rounded-full px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-white hover:text-slate-900">Dashboard</a>
                         </nav>
                         <p class="font-['Instrument_Sans'] text-sm font-semibold uppercase tracking-[0.18em] text-teal-700">Kalender Kerja</p>
                         <h1 class="font-['Space_Grotesk'] text-2xl font-bold text-slate-900 sm:text-3xl">{{ $currentMonth }}</h1>
@@ -127,7 +128,11 @@
                                             ? 'bg-sky-100 text-sky-800'
                                             : (($event['metode'] ?? '') === 'mooc'
                                                 ? 'bg-amber-100 text-amber-800'
-                                                : 'bg-cyan-100 text-cyan-800')) }}">
+                                                : (($event['metode'] ?? '') === 'zoom'
+                                                    ? 'bg-violet-100 text-violet-800'
+                                                    : (($event['metode'] ?? '') === 'off-campus'
+                                                        ? 'bg-rose-100 text-rose-800'
+                                                        : 'bg-cyan-100 text-cyan-800')))) }}">
                                         {{ $event['title'] }}
                                     </p>
                                 @endforeach
@@ -147,7 +152,7 @@
                     <h2 class="font-['Space_Grotesk'] text-xl font-bold text-slate-900">Agenda Hari Ini</h2>
                     <p class="mt-1 text-sm text-slate-500">{{ $selectedDate->copy()->locale('id')->isoFormat('dddd, D MMMM YYYY') }}</p>
 
-                    <div class="mt-5 space-y-3">
+                    <div class="mt-5 max-h-56 overflow-y-auto space-y-3">
                         @forelse ($agendaTerpilih as $agenda)
                             <div class="rounded-2xl border p-3 {{ $agenda->metode_pembelajaran === 'klasikal'
                                 ? 'border-emerald-200 bg-emerald-50'
@@ -155,14 +160,22 @@
                                     ? 'border-sky-200 bg-sky-50'
                                     : ($agenda->metode_pembelajaran === 'mooc'
                                         ? 'border-amber-200 bg-amber-50'
-                                        : 'border-cyan-200 bg-cyan-50')) }}">
+                                        : ($agenda->metode_pembelajaran === 'zoom'
+                                            ? 'border-violet-200 bg-violet-50'
+                                            : ($agenda->metode_pembelajaran === 'off-campus'
+                                                ? 'border-rose-200 bg-rose-50'
+                                                : 'border-cyan-200 bg-cyan-50')))) }}">
                                 <p class="text-xs font-semibold uppercase tracking-wide {{ $agenda->metode_pembelajaran === 'klasikal'
                                     ? 'text-emerald-700'
                                     : ($agenda->metode_pembelajaran === 'e-learning'
                                         ? 'text-sky-700'
                                         : ($agenda->metode_pembelajaran === 'mooc'
                                             ? 'text-amber-700'
-                                            : 'text-cyan-700')) }}">
+                                            : ($agenda->metode_pembelajaran === 'zoom'
+                                                ? 'text-violet-700'
+                                                : ($agenda->metode_pembelajaran === 'off-campus'
+                                                    ? 'text-rose-700'
+                                                    : 'text-cyan-700')))) }}">
                                     {{ strtoupper($agenda->metode_pembelajaran) }}
                                 </p>
                                 <p class="mt-1 text-sm font-semibold text-slate-900">{{ $agenda->nama_kegiatan }}</p>
@@ -205,29 +218,31 @@
                     </div>
                 </section>
 
-                <section class="calendar-card rounded-3xl border border-slate-200/70 bg-white/85 p-5 shadow-xl shadow-slate-900/10 backdrop-blur sm:p-6">
-                    <div class="flex items-center justify-between gap-3">
-                        <h2 class="font-['Space_Grotesk'] text-xl font-bold text-slate-900">Katalog Pelatihan</h2>
-                        <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">{{ count($katalogPelatihan) }} Kelas</span>
-                    </div>
+                @if ($isAdmin)
+                    <section class="calendar-card rounded-3xl border border-slate-200/70 bg-white/85 p-5 shadow-xl shadow-slate-900/10 backdrop-blur sm:p-6">
+                        <div class="flex items-center justify-between gap-3">
+                            <h2 class="font-['Space_Grotesk'] text-xl font-bold text-slate-900">Katalog Pelatihan</h2>
+                            <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">{{ count($katalogPelatihan) }} Kelas</span>
+                        </div>
 
-                    <div class="mt-4 max-h-72 space-y-2 overflow-y-auto pr-1">
-                        @forelse ($katalogPelatihan as $pelatihan)
-                            <article class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                                <p class="text-xs font-semibold uppercase tracking-wide text-teal-700">Master Kalender {{ $pelatihan->tahun_kalender }}</p>
-                                <p class="mt-1 text-sm font-semibold text-slate-900">{{ $pelatihan->nama_kalender }}</p>
-                                <div class="mt-1 flex items-center justify-between">
-                                    <p class="text-xs text-slate-500">Peserta: {{ number_format((int) $pelatihan->total_peserta, 0, ',', '.') }}</p>
-                                    <a href="{{ route('katalog.detail', ['id' => $pelatihan->id_kalender]) }}" class="text-xs font-semibold text-teal-700 hover:text-teal-900">Detail</a>
-                                </div>
-                            </article>
-                        @empty
-                            <article class="rounded-xl border border-dashed border-slate-300 bg-white px-3 py-4 text-center text-sm text-slate-500">
-                                Belum ada data master kalender.
-                            </article>
-                        @endforelse
-                    </div>
-                </section>
+                        <div class="mt-4 max-h-72 space-y-2 overflow-y-auto pr-1">
+                            @forelse ($katalogPelatihan as $pelatihan)
+                                <article class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                                    <p class="text-xs font-semibold uppercase tracking-wide text-teal-700">Master Kalender {{ $pelatihan->tahun_kalender }}</p>
+                                    <p class="mt-1 text-sm font-semibold text-slate-900">{{ $pelatihan->nama_kalender }}</p>
+                                    <div class="mt-1 flex items-center justify-between">
+                                        <p class="text-xs text-slate-500">Peserta: {{ number_format((int) $pelatihan->total_peserta, 0, ',', '.') }}</p>
+                                        <a href="{{ route('katalog.detail', ['id' => $pelatihan->id_kalender]) }}" class="text-xs font-semibold text-teal-700 hover:text-teal-900">Detail</a>
+                                    </div>
+                                </article>
+                            @empty
+                                <article class="rounded-xl border border-dashed border-slate-300 bg-white px-3 py-4 text-center text-sm text-slate-500">
+                                    Belum ada data master kalender.
+                                </article>
+                            @endforelse
+                        </div>
+                    </section>
+                @endif
             </aside>
         </div>
     </main>

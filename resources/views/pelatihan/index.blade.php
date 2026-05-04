@@ -9,6 +9,53 @@
     <link href="https://fonts.bunny.net/css?family=space-grotesk:400,500,600,700|instrument-sans:400,500,600" rel="stylesheet" />
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    <style>
+        /* Modal buttons */
+        .modal-btn-batal {
+            border-radius: 0.75rem;
+            background: #f1f5f9;
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #334155;
+            border: none;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+        }
+        .modal-btn-batal:hover {
+            background: #e2e8f0;
+            color: #0f172a;
+        }
+        .modal-btn-simpan {
+            border-radius: 0.75rem;
+            background: #0d9488;
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .modal-btn-simpan:hover {
+            background: #0f766e;
+        }
+        /* Modal close (X) button */
+        #modal-edit-global button[onclick="closeEditModal()"] {
+            transition: background 0.15s, color 0.15s;
+        }
+        #modal-edit-global button[onclick="closeEditModal()"]:hover {
+            background: #f1f5f9;
+            color: #334155;
+        }
+        /* Input focus ring in modal */
+        #modal-edit-global input:focus {
+            outline: 2px solid #0d9488;
+            outline-offset: 2px;
+            border-color: #0d9488;
+        }
+    </style>
 </head>
 <body class="calendar-surface min-h-screen text-slate-800 antialiased">
     @php
@@ -18,24 +65,28 @@
         $searchTahun = $searchTahun ?? '';
         $totalMasterSemua = $totalMasterSemua ?? (method_exists($masterKalender, 'count') ? $masterKalender->count() : 0);
         $totalHasilFilter = $totalHasilFilter ?? (method_exists($masterKalender, 'count') ? $masterKalender->count() : 0);
+        $isAdmin = auth()->check() && auth()->user()?->isAdmin();
     @endphp
 
     <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <header class="calendar-card rounded-3xl border border-white/70 bg-white/85 p-6 shadow-2xl shadow-slate-900/10 backdrop-blur sm:p-8">
-            <p class="font-['Instrument_Sans'] text-sm font-semibold uppercase tracking-[0.2em] text-teal-700">BPSDM 2026</p>
-            <h1 class="mt-2 font-['Space_Grotesk'] text-3xl font-bold text-slate-900 sm:text-4xl">Katalog Daftar Pelatihan</h1>
-            <p class="mt-3 max-w-2xl text-sm text-slate-600 sm:text-base">Data katalog di bawah ini langsung berasal dari master kalender yang tersimpan di database.</p>
+            <div class="grid justify-end sm:grid-cols-1 xl:grid-cols-6">
+                <h1 class="col-start-1 col-end-5 mt-5 font-['Space_Grotesk'] text-3xl font-bold text-slate-900 sm:text-3xl">JENDELA PEMBELAJAR (KALENDER PELATIHAN)</h1>
+                <img src="{{ asset('jp.png') }}" alt="Logo Jendela Pembelajar" class="hidden h-20 w-auto object-contain sm:block col-end-8" />
+            </div>
+            <p class="max-w-2xl text-sm text-slate-600 sm:text-base">Data katalog di bawah ini langsung berasal dari master kalender yang tersimpan di database.</p>
 
             <div class="mt-5 flex flex-wrap items-center gap-3">
                 <nav class="inline-flex items-center gap-1 rounded-full bg-slate-100 p-1 ring-1 ring-slate-200">
                     <a href="{{ route('katalog.index') }}" class="rounded-full bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm">Katalog</a>
-                    <a href="{{ route('dashboard.index') }}" class="rounded-full px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white hover:text-slate-900">Dashboard</a>
                     <a href="{{ route('kalender.index') }}" class="rounded-full px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white hover:text-slate-900">Kalender</a>
+                    <a href="{{ route('dashboard.index') }}" class="rounded-full px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white hover:text-slate-900">Dashboard</a>
                 </nav>
                 <span class="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200">Total Master: {{ $totalMasterSemua }}</span>
             </div>
         </header>
 
+        @if ($isAdmin)
         <section class="calendar-card mt-6 rounded-3xl border border-slate-200/80 bg-white/90 p-5 shadow-xl shadow-slate-900/10 backdrop-blur sm:p-6">
             <div class="grid gap-5 lg:grid-cols-[1fr_1.3fr]">
                 <div>
@@ -96,11 +147,12 @@
                 </div>
             </div>
         </section>
+        @endif
 
         <section class="mt-6">
             <div class="mb-3 flex items-center justify-between">
                 <h2 class="font-['Space_Grotesk'] text-2xl font-bold text-slate-900">Katalog Dari Master Kalender</h2>
-                <span class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">{{ $totalHasilFilter }} Data</span>
+                <!-- <span class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">{{ $totalHasilFilter }} Data</span> -->
             </div>
 
             <form method="GET" action="{{ route('katalog.index') }}" class="mb-10 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm">
@@ -146,9 +198,28 @@
                             </div>
                         </dl>
 
-                        <a href="{{ route('katalog.detail', ['id' => $item->id_kalender]) }}" class="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700">
-                            Detail
-                        </a>
+                        <div class="mt-4 flex flex-col gap-2">
+                            <a href="{{ route('katalog.detail', ['id' => $item->id_kalender]) }}" class="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700">
+                                Detail
+                            </a>
+                            @if ($isAdmin)
+                                <div class="grid gap-2 sm:grid-cols-2">
+                                    <button
+                                        type="button"
+                                        onclick="openEditModal({{ $item->id_kalender }}, {{ json_encode($item->nama_kalender) }}, {{ $item->tahun_kalender }}, {{ $item->total_peserta }})"
+                                        class="flex w-full cursor-pointer items-center justify-center rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 ring-1 ring-inset ring-slate-200 transition-all duration-150 hover:bg-teal-600 hover:text-white hover:ring-teal-600">
+                                        Edit
+                                    </button>
+                                    <form action="{{ route('katalog.destroy', ['id' => $item->id_kalender]) }}" method="POST">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" onclick="return confirm('Apakah Anda yakin ingin menghapus katalog ini?')" class="flex w-full cursor-pointer items-center justify-center rounded-xl bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-600 ring-1 ring-inset ring-rose-200 transition-all duration-150 hover:bg-rose-600 hover:text-white hover:ring-rose-600">
+                                            Hapus
+                                        </button>
+                                    </form>
+                                </div>
+                            @endif
+                        </div>
                     </article>
                 @empty
                     <article class="calendar-card rounded-2xl border border-dashed border-slate-300 bg-white/80 p-6 text-center text-slate-500 sm:col-span-2 xl:col-span-3">
@@ -165,6 +236,7 @@
         </section>
     </main>
 
+    @if ($isAdmin)
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script>
         const uploadForm = document.getElementById('upload-master-form');
@@ -246,5 +318,71 @@
         });
 
     </script>
+    @endif
+
+    @if ($isAdmin)
+    {{-- Single global modal for editing --}}
+    <div
+        id="modal-edit-global"
+        style="display:none; position:fixed; inset:0; z-index:9999; align-items:center; justify-content:center; padding:1rem; background:rgba(15,23,42,0.5);"
+        onclick="if(event.target===this) closeEditModal()"
+    >
+        <div style="background:#fff; border-radius:1rem; padding:2rem; width:100%; max-width:32rem; box-shadow:0 25px 50px -12px rgba(0,0,0,0.25); position:relative;">
+            <div style="display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #e2e8f0; padding-bottom:0.75rem; margin-bottom:1rem;">
+                <h3 style="font-family:'Space Grotesk',sans-serif; font-size:1.125rem; font-weight:700; color:#0f172a;">Edit Master Kalender</h3>
+                <button type="button" onclick="closeEditModal()" style="border:none; background:none; cursor:pointer; color:#94a3b8; border-radius:9999px; padding:0.25rem;">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                    </svg>
+                </button>
+            </div>
+            <form id="modal-edit-form" method="POST" style="display:flex; flex-direction:column; gap:1rem;">
+                @csrf
+                <input type="hidden" name="_method" value="PUT">
+                <div>
+                    <label style="display:block; font-size:0.875rem; font-weight:600; color:#334155; margin-bottom:0.25rem;">Nama Kalender</label>
+                    <input id="modal-edit-nama" name="nama_kalender" type="text" style="display:block; width:100%; border:1px solid #cbd5e1; border-radius:0.75rem; padding:0.5rem 0.75rem; font-size:0.875rem; color:#334155; box-sizing:border-box;" required>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+                    <div>
+                        <label style="display:block; font-size:0.875rem; font-weight:600; color:#334155; margin-bottom:0.25rem;">Tahun</label>
+                        <input id="modal-edit-tahun" name="tahun_kalender" type="number" style="display:block; width:100%; border:1px solid #cbd5e1; border-radius:0.75rem; padding:0.5rem 0.75rem; font-size:0.875rem; color:#334155; box-sizing:border-box;" required>
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.875rem; font-weight:600; color:#334155; margin-bottom:0.25rem;">Total Peserta</label>
+                        <input id="modal-edit-peserta" name="total_peserta" type="number" style="display:block; width:100%; border:1px solid #cbd5e1; border-radius:0.75rem; padding:0.5rem 0.75rem; font-size:0.875rem; color:#334155; box-sizing:border-box;" required>
+                    </div>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:0.5rem; padding-top:0.5rem;">
+                    <button type="button" onclick="closeEditModal()" class="modal-btn-batal">Batal</button>
+                    <button type="submit" class="modal-btn-simpan">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const baseKatalogUrl = '{{ url("/katalog") }}';
+
+        function openEditModal(id, nama, tahun, peserta) {
+            document.getElementById('modal-edit-nama').value = nama;
+            document.getElementById('modal-edit-tahun').value = tahun;
+            document.getElementById('modal-edit-peserta').value = peserta;
+            document.getElementById('modal-edit-form').action = baseKatalogUrl + '/' + id;
+            const modal = document.getElementById('modal-edit-global');
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeEditModal() {
+            document.getElementById('modal-edit-global').style.display = 'none';
+            document.body.style.overflow = '';
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeEditModal();
+        });
+    </script>
+    @endif
 </body>
 </html>
